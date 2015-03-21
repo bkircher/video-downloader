@@ -6,16 +6,15 @@ TODO:
 
 - Fix defect: the last youtube-dl line (the one that is updated frequently) is
   not displayed until subprocess terminates.
-- Feature: behave well when Ctrl+C is pressed, handle KeyboardInterrupt
-  exception or register signal handler for signal.SIGINT.
-- Feature: allow for resume when script is terminated before all URLs in queue
-  could be downloaded. Idea: temporary file that is searched for upon start.
 
 """
 
 import sys
 import os
+import os.path
 import subprocess
+import signal
+import copy
 
 
 class SubprocessError(Exception):
@@ -56,9 +55,9 @@ def execute(command):
         raise SubprocessError("'{}' failed".format(command))
 
 
-def dialog(downloads):
-    """Ask user if he really wants to download from given URLs."""
-    print("Found following URLs in clipboard:")
+def user_confirm(message, downloads):
+    """Ask user whether to continue."""
+    print(message)
 
     n = 1
     for download in downloads:
@@ -67,7 +66,7 @@ def dialog(downloads):
 
     print("Do you want to proceed? [yes/no]")
     proceed = input()
-    if proceed in ('y', 'yes', 'Y', 'Yes', 'YES'):
+    if proceed in ("y", "yes", "Y", "Yes", "YES"):
         return downloads
 
     return set()
@@ -77,26 +76,26 @@ def get_clipboard_contents():
     """Platform-specific code for getting contents from clipboard."""
     result = set()
 
-    if sys.platform == 'linux':
+    if sys.platform == "linux":
         # Get entries from KDE4/klipper
         import dbus
         bus = dbus.SessionBus()
-        obj = bus.get_object('org.kde.klipper', '/klipper')
+        obj = bus.get_object("org.kde.klipper", "/klipper")
         raw_history = obj.getClipboardHistoryMenu()
         for item in raw_history:
-            if item.startswith('http'):
+            if item.startswith("http"):
                 result.add(item)
 
         # Get entries from GNOME/gpaste
-        # raw_history = subprocess.check_output(['/usr/bin/gpaste',
-        #     'raw-history'])
-        # history = raw_history.decode('utf-8')
-        # for item in history.split('\n'):
+        # raw_history = subprocess.check_output(["/usr/bin/gpaste",
+        #     "raw-history"])
+        # history = raw_history.decode("utf-8")
+        # for item in history.split("\n"):
         #     if len(item) is not 0:
-        #         if item.startswith('http'):
+        #         if item.startswith("http"):
         #             result.add(item)
 
-    elif sys.platform == 'darwin':
+    elif sys.platform == "darwin":
         # Following the old code used on Mac OS X to deal with plist files.
 
         from tempfile import gettempdir
@@ -105,7 +104,7 @@ def get_clipboard_contents():
         from shutil import copy
 
         clips_file = os.path.expanduser(
-            '~/Library/Application Support/ClipMenu/clips.data')
+            "~/Library/Application Support/ClipMenu/clips.data")
 
         # Make a copy of the clips and convert it from a binary plist to text
         tmpdir = gettempdir()
@@ -119,30 +118,80 @@ def get_clipboard_contents():
         atexit.register(remove_temp_file)
 
         converted = subprocess.call(
-            ['plutil', '-convert', 'xml1', clips_file_copy])
+            ["plutil", "-convert", "xml1", clips_file_copy])
         if converted != 0:
             print("Couldn't convert clips plist to xml format")
             sys.exit(converted)
 
         plist = plistlib.readPlist(clips_file_copy)
-        for item in plist['$objects']:
+        for item in plist["$objects"]:
             if type(item) is str:
-                if item.startswith('http'):
+                if item.startswith("http"):
                     result.add(item)
 
     return result
 
 
-download_set = get_clipboard_contents()
+def main():
+    xdg_data_home = os.getenv("XDG_DATA_HOME")
+    if not xdg_data_home:
+        print("Environment variable not set: XDG_DATA_HOME")
+        sys.exit(1)
 
-if len(download_set) == 0:
-    sys.exit()
+    data_dir = os.path.join(xdg_data_home, "video-downloader")
+    data_file = os.path.join(data_dir, "resume.txt")
+    resume_set = set()
+    download_set = set()
 
-download_set = dialog(download_set)
+    def signal_handler(signal, frame):
+        print("\nInterrupted; stopping gracefully...")
+        if len(resume_set) == 0:
+            # Nothing to remember
+            sys.exit(0)
 
-for url in download_set:
-    try:
-        execute('youtube-dl -ct {}'.format(url))
-    except SubprocessError as exc:
-        print(exc)
-        continue
+        if not os.path.isdir(data_dir):
+            os.mkdir(data_dir, mode=0o775)
+
+        with open(data_file, "w") as f:
+            for url in resume_set:
+                f.write("{}\n".format(url))
+
+        sys.exit(0)
+
+
+    if os.path.isfile(data_file):
+        # Might have crashed or interrupted, try to recover
+        with open(data_file, "rb") as f:
+            lines = f.readlines()
+            for line in lines:
+                item = line.decode('utf-8').strip()
+                if item.startswith("http"):
+                    download_set.add(item)
+        os.unlink(data_file)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    if len(download_set) > 0:
+        # Resume?
+        download_set = user_confirm("Resume downloading URLs:", download_set)
+        if len(download_set) == 0:
+            sys.exit(0)
+    else:
+        download_set = get_clipboard_contents()
+        if len(download_set) == 0:
+            sys.exit(0)
+        download_set = user_confirm("Found following URLs in clipboard:",
+            download_set)
+
+    resume_set = copy.deepcopy(download_set)
+    for url in download_set:
+        try:
+            execute("youtube-dl -ct {}".format(url))
+        except SubprocessError as exc:
+            print(exc)
+            continue
+        resume_set.discard(url)
+
+
+if __name__ == "__main__":
+    main()
