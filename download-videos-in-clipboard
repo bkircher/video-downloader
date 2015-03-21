@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+
+"""Download all URLs in clipboard with youtube-dl."""
+
+import sys
+import os
+import subprocess
+
+
+class SubprocessError(Exception):
+
+    """Error raised when a command returned a non-zero exit code."""
+
+    pass
+
+
+def execute(command):
+    """Execute given command and print it's output.
+
+    Execute command, printing it and it's output to stdout as it goes. Raises
+    SubprocessError whenever command returns a non-zero exit code.
+
+    """
+    print(command)
+    process = subprocess.Popen(command,
+                               shell=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+
+    # Poll process for new output until finished - should have used bash in the
+    # first place :/
+    while True:
+        nextline = process.stdout.readline()
+        if nextline == b'' and process.poll() is not None:
+            break
+        sys.stdout.write(nextline.decode("utf-8"))
+        sys.stdout.flush()
+
+    output = process.communicate()[0]
+    exit_code = process.returncode
+
+    if exit_code == 0:
+        return output
+    else:
+        raise SubprocessError("'{}' failed".format(command))
+
+
+def dialog(downloads):
+    """Ask user if he really wants to download from given URLs."""
+
+    print("Found following URLs in clipboard:")
+
+    n = 1
+    for download in downloads:
+        print("{}: {}".format(n, download))
+        n = n + 1
+
+    print("Do you want to proceed? [yes/no]")
+    proceed = input()
+    if proceed in ('y', 'yes', 'Y', 'Yes', 'YES'):
+        return downloads
+
+    return set()
+
+
+def get_clipboard_contents():
+    """Platform-specific code for getting contents from clipboard."""
+
+    result = set()
+
+    if sys.platform == 'linux':
+        # Get entries from KDE4/klipper
+        import dbus
+        bus = dbus.SessionBus()
+        obj = bus.get_object('org.kde.klipper', '/klipper')
+        raw_history = obj.getClipboardHistoryMenu()
+        for item in raw_history:
+            if item.startswith('http'):
+                result.add(item)
+
+        # Get entries from GNOME/gpaste
+        #raw_history = subprocess.check_output(['/usr/bin/gpaste',
+        #    'raw-history'])
+        #history = raw_history.decode('utf-8')
+        #for item in history.split('\n'):
+        #    if len(item) is not 0:
+        #        if item.startswith('http'):
+        #            result.add(item)
+
+    elif sys.platform == 'darwin':
+        # Following the old code used on Mac OS X to deal with plist files.
+
+        from tempfile import gettempdir
+        import atexit
+        import plistlib
+        from shutil import copy
+
+        clips_file = os.path.expanduser(
+            '~/Library/Application Support/ClipMenu/clips.data')
+
+        # Make a copy of the clips and convert it from a binary plist to text
+        tmpdir = gettempdir()
+        copy(clips_file, tmpdir)
+        clips_file_copy = os.path.join(tmpdir, os.path.basename(clips_file))
+
+        def remove_temp_file():
+            """Delete the temp file when the script finishes."""
+            os.remove(clips_file_copy)
+
+        atexit.register(remove_temp_file)
+
+        converted = subprocess.call(['plutil', '-convert', 'xml1',
+            clips_file_copy])
+        if converted != 0:
+            print("Couldn't convert clips plist to xml format")
+            sys.exit(converted)
+
+        plist = plistlib.readPlist(clips_file_copy)
+        for item in plist['$objects']:
+            if type(item) is str:
+                if item.startswith('http'):
+                    result.add(item)
+
+    return result
+
+
+download_set = get_clipboard_contents()
+
+if len(download_set) == 0:
+    sys.exit()
+
+download_set = dialog(download_set)
+
+for url in download_set:
+    try:
+        execute('youtube-dl -ct {}'.format(url))
+    except SubprocessError as exc:
+        print(exc)
+        continue
