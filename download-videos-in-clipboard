@@ -58,7 +58,6 @@ def execute(command):
 
 def dialog(downloads):
     """Ask user if he really wants to download from given URLs."""
-
     print("Found following URLs in clipboard:")
 
     n = 1
@@ -76,7 +75,6 @@ def dialog(downloads):
 
 def get_clipboard_contents():
     """Platform-specific code for getting contents from clipboard."""
-
     result = set()
 
     if sys.platform == 'linux':
@@ -90,13 +88,13 @@ def get_clipboard_contents():
                 result.add(item)
 
         # Get entries from GNOME/gpaste
-        #raw_history = subprocess.check_output(['/usr/bin/gpaste',
-        #    'raw-history'])
-        #history = raw_history.decode('utf-8')
-        #for item in history.split('\n'):
-        #    if len(item) is not 0:
-        #        if item.startswith('http'):
-        #            result.add(item)
+        # raw_history = subprocess.check_output(['/usr/bin/gpaste',
+        #     'raw-history'])
+        # history = raw_history.decode('utf-8')
+        # for item in history.split('\n'):
+        #     if len(item) is not 0:
+        #         if item.startswith('http'):
+        #             result.add(item)
 
     elif sys.platform == 'darwin':
         # Following the old code used on Mac OS X to deal with plist files.
@@ -120,8 +118,8 @@ def get_clipboard_contents():
 
         atexit.register(remove_temp_file)
 
-        converted = subprocess.call(['plutil', '-convert', 'xml1',
-            clips_file_copy])
+        converted = subprocess.call(
+            ['plutil', '-convert', 'xml1', clips_file_copy])
         if converted != 0:
             print("Couldn't convert clips plist to xml format")
             sys.exit(converted)
