@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 
-"""Download all URLs in clipboard with youtube-dl."""
+"""Download all URLs in clipboard with youtube-dl.
+
+TODO:
+
+- Fix defect: the last youtube-dl line (the one that is updated frequently) is
+  not displayed until subprocess terminates.
+- Feature: behave well when Ctrl+C is pressed, handle KeyboardInterrupt
+  exception or register signal handler for signal.SIGINT.
+- Feature: allow for resume when script is terminated before all URLs in queue
+  could be downloaded. Idea: temporary file that is searched for upon start.
+
+"""
 
 import sys
 import os
