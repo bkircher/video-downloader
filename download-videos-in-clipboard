@@ -30,6 +30,7 @@ def execute(command):
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
 
+    chunk = b''
     while True:
         current = process.stdout.read(1)
         if current == b'' and process.poll() is not None:
@@ -39,7 +40,17 @@ def execute(command):
         # stdout
         sys.stdout.write("\033[K")
 
-        sys.stdout.write(current.decode("utf-8"))
+        try:
+            message = current.decode("utf-8")
+        except UnicodeDecodeError:
+            chunk = chunk + current
+            try:
+                message = chunk.decode("utf-8")
+                chunk = b''
+            except UnicodeDecodeError:
+                continue
+
+        sys.stdout.write(message)
         sys.stdout.flush()
 
     output = process.communicate()[0]
