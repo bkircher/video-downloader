@@ -85,22 +85,24 @@ def get_clipboard_contents():
 
     if sys.platform == "linux":
         # Get entries from KDE4/klipper
-        import dbus
-        bus = dbus.SessionBus()
-        obj = bus.get_object("org.kde.klipper", "/klipper")
-        raw_history = obj.getClipboardHistoryMenu()
-        for item in raw_history:
-            if item.startswith("http"):
-                result.add(item)
+        # import dbus
+        # bus = dbus.SessionBus()
+        # obj = bus.get_object("org.kde.klipper", "/klipper")
+        # raw_history = obj.getClipboardHistoryMenu()
+        # for item in raw_history:
+        #     if item.startswith("http"):
+        #         result.add(item)
 
         # Get entries from GNOME/gpaste
-        # raw_history = subprocess.check_output(["/usr/bin/gpaste",
-        #     "raw-history"])
-        # history = raw_history.decode("utf-8")
-        # for item in history.split("\n"):
-        #     if len(item) is not 0:
-        #         if item.startswith("http"):
-        #             result.add(item)
+        raw_history = subprocess.check_output(["/usr/bin/gpaste-client",
+            "history",
+            "--raw",
+            "--oneline"])
+        history = raw_history.decode("utf-8")
+        for item in history.split("\n"):
+            if len(item) is not 0:
+                if item.startswith("http"):
+                    result.add(item)
 
     elif sys.platform == "darwin":
         # Following the old code used on Mac OS X to deal with plist files.
@@ -171,7 +173,7 @@ def main():
         with open(data_file, "rb") as f:
             lines = f.readlines()
             for line in lines:
-                item = line.decode('utf-8').strip()
+                item = line.decode("utf-8").strip()
                 if item.startswith("http"):
                     download_set.add(item)
         os.unlink(data_file)
