@@ -95,9 +95,9 @@ def get_clipboard_contents():
 
         # Get entries from GNOME/gpaste
         raw_history = subprocess.check_output(["/usr/bin/gpaste-client",
-            "history",
-            "--raw",
-            "--oneline"])
+                                               "history",
+                                               "--raw",
+                                               "--oneline"])
         history = raw_history.decode("utf-8")
         for item in history.split("\n"):
             if len(item) is not 0:
@@ -167,7 +167,6 @@ def main():
 
         sys.exit(0)
 
-
     if os.path.isfile(data_file):
         # Might have crashed or interrupted, try to recover
         with open(data_file, "rb") as f:
@@ -190,7 +189,7 @@ def main():
         if len(download_set) == 0:
             sys.exit(0)
         download_set = user_confirm("Found following URLs in clipboard:",
-            download_set)
+                                    download_set)
 
     resume_set = copy.deepcopy(download_set)
     for url in download_set:
