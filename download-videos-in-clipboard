@@ -84,15 +84,6 @@ def get_clipboard_contents():
     result = set()
 
     if sys.platform == "linux":
-        # Get entries from KDE4/klipper
-        # import dbus
-        # bus = dbus.SessionBus()
-        # obj = bus.get_object("org.kde.klipper", "/klipper")
-        # raw_history = obj.getClipboardHistoryMenu()
-        # for item in raw_history:
-        #     if item.startswith("http"):
-        #         result.add(item)
-
         # Get entries from GNOME/gpaste
         raw_history = subprocess.check_output(["/usr/bin/gpaste-client",
                                                "history",
