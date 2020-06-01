@@ -100,7 +100,7 @@ def get_clipboard_contents():
                                                "--oneline"])
         history = raw_history.decode("utf-8")
         for item in history.split("\n"):
-            if len(item) is not 0:
+            if len(item) != 0:
                 if item.startswith("http"):
                     result.add(item)
 
